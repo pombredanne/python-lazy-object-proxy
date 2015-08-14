@@ -3,6 +3,7 @@ import operator
 from .compat import PY2
 from .compat import PY3
 from .compat import with_metaclass
+from .utils import identity
 
 
 class _ProxyMethods(object):
@@ -81,7 +82,8 @@ class Proxy(with_metaclass(_ProxyMetaType)):
         object.__setattr__(self, '__factory__', factory)
 
     @property
-    def __wrapped__(self, __getattr__=object.__getattribute__, __setattr__=object.__setattr__, __delattr__=object.__delattr__):
+    def __wrapped__(self, __getattr__=object.__getattribute__, __setattr__=object.__setattr__,
+                    __delattr__=object.__delattr__):
         try:
             return __getattr__(self, '__target__')
         except AttributeError:
@@ -135,11 +137,20 @@ class Proxy(with_metaclass(_ProxyMetaType)):
         def __bytes__(self):
             return bytes(self.__wrapped__)
 
-    def __repr__(self):
-        return '<%s at 0x%x for %s at 0x%x>' % (
-            type(self).__name__, id(self),
-            type(self.__wrapped__).__name__,
-            id(self.__wrapped__))
+    def __repr__(self, __getattr__=object.__getattribute__):
+        try:
+            target = __getattr__(self, '__target__')
+        except AttributeError:
+            return '<%s at 0x%x with factory %r>' % (
+                type(self).__name__, id(self),
+                self.__factory__
+            )
+        else:
+            return '<%s at 0x%x wrapping %r at 0x%x with factory %r>' % (
+                type(self).__name__, id(self),
+                target, id(target),
+                self.__factory__
+            )
 
     def __reversed__(self):
         return reversed(self.__wrapped__)
@@ -182,7 +193,10 @@ class Proxy(with_metaclass(_ProxyMetaType)):
             setattr(self.__wrapped__, name, value)
 
     def __getattr__(self, name):
-        return getattr(self.__wrapped__, name)
+        if name in ('__wrapped__', '__factory__'):
+            raise AttributeError(name)
+        else:
+            return getattr(self.__wrapped__, name)
 
     def __delattr__(self, name, __delattr__=object.__delattr__):
         if hasattr(type(self), name):
@@ -392,3 +406,9 @@ class Proxy(with_metaclass(_ProxyMetaType)):
 
     def __call__(self, *args, **kwargs):
         return self.__wrapped__(*args, **kwargs)
+
+    def __reduce__(self):
+        return identity, (self.__wrapped__,)
+
+    def __reduce_ex__(self, protocol):
+        return identity, (self.__wrapped__,)

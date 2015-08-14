@@ -2,19 +2,20 @@
 Changelog
 =========
 
-1.0.1 (2014-12-28)
+1.2.0 (2015-07-06)
 ------------------
 
-* Fix access via class bug in the ``__wrapped__`` property from ``lazy_object_proxy.simple.Proxy``.
+* Don't instantiate the object when __repr__ is called. This aids with debugging (allows one to see exactly in 
+  what state the proxy is).
 
-1.0.0 (2014-12-27)
+1.1.0 (2015-07-05)
 ------------------
 
-* General code cleanup
-* A faster pure-python Proxy implementation (``lazy_object_proxy.simple.Proxy``) to be used where the C extension is not available. It's not
-  a complete proxy so it's never available as ``lazy_object_proxy.Proxy``.
+* Added support for pickling. The pickled value is going to be the wrapped object *without* any Proxy container.
+* Fixed a memory management issue in the C extension (reference cycles weren't garbage collected due to improper
+  handling in the C extension).
 
-0.1.0 (2014-06-10)
-------------------
+1.0.2 (2015-04-11)
+-----------------------------------------
 
 * First release on PyPI.

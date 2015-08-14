@@ -3,22 +3,14 @@ import operator
 from .compat import PY2
 from .compat import PY3
 from .compat import with_metaclass
-
-
-class cached_property(object):
-    def __init__(self, func):
-        self.func = func
-
-    def __get__(self, obj, cls):
-        if obj is None:
-            return self
-        value = obj.__dict__[self.func.__name__] = self.func(obj)
-        return value
+from .utils import cached_property
+from .utils import identity
 
 
 def make_proxy_method(code):
     def proxy_wrapper(self, *args):
         return code(self.__wrapped__, *args)
+
     return proxy_wrapper
 
 
@@ -72,6 +64,8 @@ class _ProxyMetaType(type):
 
 
 class Proxy(with_metaclass(_ProxyMetaType)):
+    __factory__ = None
+
     def __init__(self, factory):
         self.__dict__['__factory__'] = factory
 
@@ -84,7 +78,6 @@ class Proxy(with_metaclass(_ProxyMetaType)):
         else:
             raise ValueError("Proxy hasn't been initiated: __factory__ is missing.")
 
-
     __name__ = property(make_proxy_method(operator.attrgetter('__name__')))
     __class__ = property(make_proxy_method(operator.attrgetter('__class__')))
     __annotations__ = property(make_proxy_method(operator.attrgetter('__anotations__')))
@@ -94,11 +87,18 @@ class Proxy(with_metaclass(_ProxyMetaType)):
     if PY3:
         __bytes__ = make_proxy_method(bytes)
 
-    def __repr__(self):
-        return '<%s at 0x%x for %s at 0x%x>' % (
-            type(self).__name__, id(self),
-            type(self.__wrapped__).__name__,
-            id(self.__wrapped__))
+    def __repr__(self, __getattr__=object.__getattribute__):
+        if '__wrapped__' in self.__dict__:
+            return '<%s at 0x%x wrapping %r at 0x%x with factory %r>' % (
+                type(self).__name__, id(self),
+                self.__wrapped__, id(self.__wrapped__),
+                self.__factory__
+            )
+        else:
+            return '<%s at 0x%x with factory %r>' % (
+                type(self).__name__, id(self),
+                self.__factory__
+            )
 
     __reversed__ = make_proxy_method(reversed)
 
@@ -122,7 +122,10 @@ class Proxy(with_metaclass(_ProxyMetaType)):
             setattr(self.__wrapped__, name, value)
 
     def __getattr__(self, name):
-        return getattr(self.__wrapped__, name)
+        if name in ('__wrapped__', '__factory__'):
+            raise AttributeError(name)
+        else:
+            return getattr(self.__wrapped__, name)
 
     def __delattr__(self, name):
         if hasattr(type(self), name):
@@ -235,3 +238,9 @@ class Proxy(with_metaclass(_ProxyMetaType)):
 
     def __call__(self, *args, **kwargs):
         return self.__wrapped__(*args, **kwargs)
+
+    def __reduce__(self):
+        return identity, (self.__wrapped__,)
+
+    def __reduce_ex__(self, protocol):
+        return identity, (self.__wrapped__,)
